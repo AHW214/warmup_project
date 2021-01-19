@@ -1,5 +1,6 @@
 import operator as op
 from dataclasses import dataclass
+from lib.math import sign
 from math import acos, cos, sin, sqrt
 from typing import Callable
 
@@ -15,10 +16,6 @@ zero: Vector2 = Vector2(x=0.0, y=0.0)
 right: Vector2 = Vector2(x=1.0, y=0.0)
 
 up: Vector2 = Vector2(x=0.0, y=1.0)
-
-
-def _sign(x: float) -> int:
-    return 1 if x > 0 else -1 if x < 0 else 0
 
 
 def _mk_op(
@@ -58,10 +55,14 @@ def angle_between(v: Vector2, w: Vector2) -> float:
     return acos(dot(v, w) / (magnitude(v) * magnitude(w)))
 
 
+def distance_between(v: Vector2, w: Vector2) -> float:
+    return magnitude(sub(v, w))
+
+
 def signed_angle_between(v: Vector2, w: Vector2) -> float:
     unsigned_angle = angle_between(v, w)
-    sign = _sign(v.x * w.y - v.y * w.x)
-    return sign * unsigned_angle
+    sn = sign(v.x * w.y - v.y * w.x)
+    return sn * unsigned_angle
 
 
 def from_angle(angle: float) -> Vector2:

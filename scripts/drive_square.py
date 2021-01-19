@@ -29,7 +29,12 @@ State = Union[Stop, Face, Approach]
 
 
 class DriveSquare(TurtleBot):
-    to_visit: Vector2 = [Vector2(3, 0), Vector2(3, 3), Vector2(0, 3), Vector2(0, 0)]
+    to_visit: List[Vector2] = [
+        Vector2(3, 0),
+        Vector2(3, 3),
+        Vector2(0, 3),
+        Vector2(0, 0),
+    ]
     visited: List[Vector2] = []
     state: State = Stop()
 
@@ -68,6 +73,7 @@ class DriveSquare(TurtleBot):
                 self.visited.append(target)
                 self.state = Stop()
             else:
+                # TODO - this is a mess (and can be refactored)
                 half_init_dist = initial_distance / 2
                 current_distance = v2.distance_between(transform.position, target)
                 midpoint_dist = abs(half_init_dist - current_distance)

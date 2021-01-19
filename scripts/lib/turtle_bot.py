@@ -57,6 +57,7 @@ class TurtleBot:
         self.update(transform, delta_time)
         self.prev_time = current_time
 
+    # TODO: add some higher-level velocity changing methods
     def send(self, velocity_angular: float, velocity_linear: float) -> None:
         twist = twist_from_velocities(velocity_angular, velocity_linear)
         self.publisher.publish(twist)

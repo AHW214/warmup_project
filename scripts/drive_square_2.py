@@ -78,10 +78,13 @@ class DriveSquare(TurtleBot):
                 d_theta = delta_angle(transform.rotation, transform.position, target)
 
                 sn = -1 * math.sign(d_theta)
-                angle_thing = 2 * abs(d_theta)
+                angle_thing = abs(d_theta)
                 inter = (0 if angle_thing < 1e-2 else angle_thing) / pi
-                vel_angular = sn * math.smoothstep(0.0, pi, inter)
-                print(vel_angular)
+                vel_angular = (
+                    sn
+                    * max(15 * current_distance, 1)
+                    * math.smoothstep(0.0, 2 * pi, inter)
+                )
 
                 self.send(velocity_angular=vel_angular, velocity_linear=vel_linear)
 
@@ -91,7 +94,7 @@ def approx_equal(v: Vector2, w: Vector2) -> bool:
 
 
 def delta_angle(rotation: float, source: Vector2, target: Vector2) -> float:
-    direction_target = v2.sub(target, source)
+    direction_target = v2.normalize(v2.sub(target, source))
     direction_facing = v2.from_angle(rotation)
     return v2.signed_angle_between(direction_target, direction_facing)
 

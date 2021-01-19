@@ -39,6 +39,10 @@ def dot(v: Vector2, w: Vector2) -> float:
     return v.x * w.x + v.y * w.y
 
 
+def normalize(v: Vector2) -> Vector2:
+    return scale(v, 1 / magnitude(v))
+
+
 def magnitude(v: Vector2) -> float:
     return sqrt(dot(v, v))
 

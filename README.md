@@ -12,7 +12,7 @@
 ![drive square recording](media/drive_square.gif)
 
 To drive in a square, I originally tried looping through a list of timed angular
-and linear movements [see drive_square_old.py](https://github.com/AHW214/warmup_project/blob/drive-square/scripts/drive_square_old.py).
+and linear movements ([see drive_square_old.py](https://github.com/AHW214/warmup_project/blob/drive-square/scripts/drive_square_old.py)).
 
 This would work well for moving an object that exhibited no momentum, and whose
 universe permitted instantaneous changes in velocity, but the gazebo simulator

@@ -6,4 +6,5 @@
 ### Scripts ###
 
 # Python cache
+.mypy_cache
 __pycache__

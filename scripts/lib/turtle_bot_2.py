@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Callable
 from geometry_msgs.msg import Twist, Vector3
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 from lib.controller.controller import Cmd, Msg, Sub
 from lib.vector2 import Vector2
@@ -57,4 +58,12 @@ def odometry(to_msg: Callable[[Transform], Msg]) -> Sub[Msg]:
             # TODO: compose pattern popping up a bit
             transform_from_odometry(odom)
         ),
+    )
+
+
+def scan(to_msg: Callable[[LaserScan], Msg]) -> Sub[Msg]:
+    return Sub(
+        topic_name="/scan",
+        topic_type=LaserScan,
+        topic_to_msg=to_msg,
     )

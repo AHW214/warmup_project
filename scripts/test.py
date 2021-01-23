@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass, replace
+from datetime import datetime
 from typing import List, Optional, Tuple, Union
+from sensor_msgs.msg import LaserScan
 from lib.controller.controller import Cmd, Controller, Sub
 import lib.turtle_bot_2 as turtle
 
@@ -16,6 +18,11 @@ class Odom:
     transform: turtle.Transform
 
 
+@dataclass
+class Scan:
+    scan: LaserScan
+
+
 Msg = Union[Odom]
 
 
@@ -28,11 +35,15 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
         new_model = replace(model, thing="yay")
         return (new_model, None)
 
+    if isinstance(msg, Scan):
+        print("scaaaaaaaaaaaaaaan")
+        return (model, None)
+
     return (model, None)
 
 
 def subscriptions(_: Model) -> List[Sub[Msg]]:
-    return [turtle.odometry(Odom)]
+    return [turtle.odometry(Odom), turtle.scan(Scan)]
 
 
 if __name__ == "__main__":

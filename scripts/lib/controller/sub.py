@@ -19,7 +19,7 @@ class Subscribers(Generic[Msg]):
         self.callback = callback
 
     def update(self, subs: List[Sub[Msg]]) -> None:
-        topic_names = self.sub_dict.keys()
+        topic_names = list(self.sub_dict.keys())  # TODO: eh
 
         for s in subs:
             if s.topic_name not in topic_names:

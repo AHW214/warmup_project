@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 from dataclasses import dataclass, replace
-from datetime import datetime
+import math
+import time
 from typing import List, Optional, Tuple, Union
 from sensor_msgs.msg import LaserScan
 from lib.controller.controller import Cmd, Controller, Sub
@@ -23,6 +24,8 @@ class Scan:
     scan: LaserScan
 
 
+start = time.time()
+
 Msg = Union[Odom]
 
 
@@ -42,8 +45,14 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
     return (model, None)
 
 
+def even(x: int) -> bool:
+    return x % 2 == 0
+
+
 def subscriptions(_: Model) -> List[Sub[Msg]]:
-    return [turtle.odometry(Odom), turtle.scan(Scan)]
+    return [turtle.scan(Scan)] + (
+        [] if even(math.floor((time.time() - start) / 2)) else [turtle.odometry(Odom)]
+    )
 
 
 if __name__ == "__main__":

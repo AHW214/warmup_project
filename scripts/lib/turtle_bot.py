@@ -67,6 +67,9 @@ def velocity(linear: float, angular: float) -> Cmd:
     )
 
 
+stop: Cmd = velocity(linear=0.0, angular=0.0)
+
+
 def odometry(to_msg: Callable[[Transform], Msg]) -> Sub[Msg]:
     """
     Get odometry information from TurtleBot.

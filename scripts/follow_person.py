@@ -47,14 +47,28 @@ def closest_in_scan(scan: LaserScan) -> Scan:
 
 def update(scan: Scan, model: Model) -> Tuple[Model, Optional[Cmd]]:
     if model == Model.follow:
-        interpolation = abs(scan.direction) / math.pi
-        direction = mathf.sign(scan.direction)
-        vel_angular = direction * mathf.smoothstep(0.0, 2 * math.pi, interpolation)
+        if scan.distance < 0.5:
+            return (Model.stop, tb.velocity(linear=0.0, angular=0.0))
 
-        return (model, tb.velocity(linear=0.0, angular=vel_angular))
+        interpolation_angular = abs(scan.direction) / math.pi
+        direction = mathf.sign(scan.direction)
+        vel_angular = direction * mathf.smoothstep(
+            low=0.0,
+            high=2 * math.pi,
+            amount=interpolation_angular,
+        )
+
+        interpolation_linear = min((scan.distance - 0.5) / 5, 1.0)
+        vel_linear = mathf.smoothstep(
+            low=0.0,
+            high=2.0,
+            amount=interpolation_linear,
+        )
+
+        return (model, tb.velocity(linear=vel_linear, angular=vel_angular))
 
     # if isinstance(model, Stop):
-    if scan.distance > 0.5:
+    if scan.distance >= 0.5:
         return (Model.follow, None)
 
     return (model, None)

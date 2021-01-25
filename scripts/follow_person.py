@@ -7,7 +7,7 @@ Have TurtleBot follow nearby objects.
 from dataclasses import dataclass
 from enum import Enum
 import math
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 import rospy
 from sensor_msgs.msg import LaserScan
 from lib.controller import Cmd, Controller, Sub
@@ -28,13 +28,24 @@ init_model: Model = Model.stop
 
 
 @dataclass
+class Wait:
+    pass
+
+
+@dataclass
 class Scan:
     distance: float
     direction: float
 
 
-def closest_in_scan(scan: LaserScan) -> Scan:
+Msg = Union[Wait, Scan]
+
+
+def to_msg(scan: LaserScan) -> Msg:
     (count, distance) = min(enumerate(scan.ranges), key=lambda t: t[1])
+
+    if math.isinf(distance):
+        return Wait()
 
     angle = scan.angle_increment * count
     direction = angle - (2 * math.pi if angle > math.pi else 0.0)
@@ -45,22 +56,25 @@ def closest_in_scan(scan: LaserScan) -> Scan:
 ### Update ###
 
 
-def update(scan: Scan, model: Model) -> Tuple[Model, Optional[Cmd]]:
+def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
     if model == Model.follow:
-        if scan.distance < 0.5:
+        if isinstance(msg, Wait) or msg.distance < 0.75:
             return (Model.stop, tb.velocity(linear=0.0, angular=0.0))
 
-        interpolation_angular = abs(scan.direction) / math.pi
-        direction = mathf.sign(scan.direction)
-        vel_angular = direction * mathf.smoothstep(
+        interpolation_angular = abs(msg.direction) / math.pi
+        direction = mathf.sign(msg.direction)
+        vel_angular = direction * mathf.lerp(
             low=0.0,
             high=2 * math.pi,
             amount=interpolation_angular,
         )
 
-        interpolation_linear = min((scan.distance - 0.5) / 5, 1.0)
-        vel_linear = mathf.smoothstep(
-            low=0.0,
+        interpolation_linear = (1 - 0.45 * interpolation_angular) * min(
+            (msg.distance - 0.75) / 3.5, 1.0
+        )
+
+        vel_linear = mathf.lerp(
+            low=0.2,
             high=2.0,
             amount=interpolation_linear,
         )
@@ -68,7 +82,7 @@ def update(scan: Scan, model: Model) -> Tuple[Model, Optional[Cmd]]:
         return (model, tb.velocity(linear=vel_linear, angular=vel_angular))
 
     # if isinstance(model, Stop):
-    if scan.distance >= 0.5:
+    if isinstance(msg, Scan) and msg.distance >= 0.75:
         return (Model.follow, None)
 
     return (model, None)
@@ -78,7 +92,7 @@ def update(scan: Scan, model: Model) -> Tuple[Model, Optional[Cmd]]:
 
 
 def subscriptions(_: Model) -> List[Sub[Scan]]:
-    return [tb.scan(closest_in_scan)]
+    return [tb.scan(to_msg)]
 
 
 ### Run ###

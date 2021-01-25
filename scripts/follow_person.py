@@ -17,6 +17,10 @@ import lib.turtle_bot as tb
 
 ### Model ###
 class Model(Enum):
+    """
+    Possible states: stop or follow.
+    """
+
     stop = 1
     follow = 2
 
@@ -29,11 +33,17 @@ init_model: Model = Model.stop
 
 @dataclass
 class Wait:
-    pass
+    """
+    Wait while nothing is in range of the scanner.
+    """
 
 
 @dataclass
 class Scan:
+    """
+    Distance and direction to the closest scanned object.
+    """
+
     distance: float
     direction: float
 
@@ -42,6 +52,9 @@ Msg = Union[Wait, Scan]
 
 
 def to_msg(scan: LaserScan) -> Msg:
+    """
+    Convert LiDAR data to the appropriate message (Wait or closest Scan).
+    """
     (count, distance) = min(enumerate(scan.ranges), key=lambda t: t[1])
 
     if math.isinf(distance):
@@ -55,34 +68,49 @@ def to_msg(scan: LaserScan) -> Msg:
 
 ### Update ###
 
+VEL_ANGULAR_MIN = 0.0
+VEL_ANGULAR_MAX = 2 * math.pi
+
+VEL_LINEAR_MIN = 0.2
+VEL_LINEAR_MAX = 2.0
+
+SCAN_RANGE_MAX = 3.5
+STOP_DISTANCE = 0.75
+
 
 def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
     if model == Model.follow:
-        if isinstance(msg, Wait) or msg.distance < 0.75:
-            return (Model.stop, tb.velocity(linear=0.0, angular=0.0))
+        if isinstance(msg, Wait) or msg.distance < STOP_DISTANCE:
+            return (Model.stop, tb.stop)
 
         interpolation_angular = abs(msg.direction) / math.pi
         direction = mathf.sign(msg.direction)
         vel_angular = direction * mathf.lerp(
-            low=0.0,
-            high=2 * math.pi,
+            low=VEL_ANGULAR_MIN,
+            high=VEL_ANGULAR_MAX,
             amount=interpolation_angular,
         )
 
         interpolation_linear = (1 - 0.45 * interpolation_angular) * min(
-            (msg.distance - 0.75) / 3.5, 1.0
+            (msg.distance - STOP_DISTANCE) / SCAN_RANGE_MAX, 1.0
         )
 
         vel_linear = mathf.lerp(
-            low=0.2,
-            high=2.0,
+            low=VEL_LINEAR_MIN,
+            high=VEL_LINEAR_MAX,
             amount=interpolation_linear,
         )
 
-        return (model, tb.velocity(linear=vel_linear, angular=vel_angular))
+        return (
+            model,
+            tb.velocity(
+                linear=vel_linear,
+                angular=vel_angular,
+            ),
+        )
 
-    # if isinstance(model, Stop):
-    if isinstance(msg, Scan) and msg.distance >= 0.75:
+    # if model == Model.stop:
+    if isinstance(msg, Scan) and msg.distance >= STOP_DISTANCE:
         return (Model.follow, None)
 
     return (model, None)

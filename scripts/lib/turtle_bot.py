@@ -1,13 +1,23 @@
-import rospy
+"""
+TurtleBot3 command and subscription interface.
+"""
+
 from dataclasses import dataclass
+from typing import Callable
 from geometry_msgs.msg import Twist, Vector3
-from lib.vector2 import Vector2
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
+from lib.controller.controller import Cmd, Msg, Sub
+from lib.vector2 import Vector2
 
 
 @dataclass
 class Transform:
+    """
+    Properties specifying the position, rotation, and movement of a TurtleBot.
+    """
+
     position: Vector2
     rotation: float
     velocity_linear: float
@@ -15,6 +25,9 @@ class Transform:
 
 
 def transform_from_odometry(odom: Odometry) -> Transform:
+    """
+    Create a TurtleBot transform from the given odometry message.
+    """
     pose = odom.pose.pose
     twist = odom.twist.twist
 
@@ -33,44 +46,47 @@ def transform_from_odometry(odom: Odometry) -> Transform:
     return Transform(position, rotation, velocity_linear, velocity_angular)
 
 
-def twist_from_velocities(velocity_angular: float, velocity_linear: float) -> Twist:
+def twist_from_velocities(linear_x: float, angular_z: float) -> Twist:
+    """
+    Create a twist message from the given linear x and angular z velocities.
+    """
     return Twist(
-        angular=Vector3(x=0.0, y=0.0, z=velocity_angular),
-        linear=Vector3(x=velocity_linear, y=0.0, z=0.0),
+        angular=Vector3(x=0.0, y=0.0, z=angular_z),
+        linear=Vector3(x=linear_x, y=0.0, z=0.0),
     )
 
 
-class TurtleBot:
-    prev_time: float = 0.0
-    publisher: rospy.Publisher = None
-    subscriber: rospy.Subscriber = None
+def velocity(linear: float, angular: float) -> Cmd:
+    """
+    Set the linear and angular velocities of TurtleBot.
+    """
+    return Cmd(
+        topic_name="/cmd_vel",
+        message_type=Twist,
+        message_value=twist_from_velocities(linear, angular),
+    )
 
-    def update(self, transform: Transform, delta_time: float) -> None:
-        pass
 
-    def receive(self, odom: Odometry) -> None:
-        current_time = odom.header.stamp.to_sec()
+def odometry(to_msg: Callable[[Transform], Msg]) -> Sub[Msg]:
+    """
+    Get odometry information from TurtleBot.
+    """
+    return Sub(
+        topic_name="/odom",
+        message_type=Odometry,
+        to_msg=lambda odom: to_msg(
+            # TODO: compose pattern popping up a bit
+            transform_from_odometry(odom)
+        ),
+    )
 
-        delta_time = current_time - self.prev_time
-        transform = transform_from_odometry(odom)
 
-        self.update(transform, delta_time)
-        self.prev_time = current_time
-
-    # TODO: add some higher-level velocity changing methods
-    def send(self, velocity_angular: float, velocity_linear: float) -> None:
-        twist = twist_from_velocities(velocity_angular, velocity_linear)
-        self.publisher.publish(twist)
-
-    def run(self) -> None:
-        rospy.init_node("turtle_bot_client")
-
-        self.publisher = rospy.Publisher(
-            name="/cmd_vel", data_class=Twist, queue_size=10
-        )
-
-        self.subscriber = rospy.Subscriber(
-            name="/odom", data_class=Odometry, callback=self.receive
-        )
-
-        rospy.spin()
+def scan(to_msg: Callable[[LaserScan], Msg]) -> Sub[Msg]:
+    """
+    Get laser scan information from TurtleBot
+    """
+    return Sub(
+        topic_name="/scan",
+        message_type=LaserScan,
+        to_msg=to_msg,
+    )

@@ -154,7 +154,7 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
             -1
             * scale
             * tb.vel_angular_to_target(
-                angle_current=math.degrees(d_theta),
+                angle_current=round(math.degrees(d_theta)),
                 angle_target=0,
                 vel_range=(0.0, 2.0 * math.pi),
                 interpolator=mathf.smoothstep,

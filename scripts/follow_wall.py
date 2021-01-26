@@ -7,7 +7,7 @@ Have TurtleBot navigate alongside nearby walls.
 from dataclasses import dataclass
 from enum import Enum
 import math
-from typing import Callable, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 import rospy
 from sensor_msgs.msg import LaserScan
 from lib.controller import Cmd, Controller, Sub
@@ -55,78 +55,13 @@ def to_msg(scan: LaserScan) -> Msg:
 ### Update ###
 
 
-def interpolate_signed(
-    amount_signed: float,
-    output_range: Tuple[float, float],
-    interpolator: Callable[[float, float, float], float],
-) -> float:
-    amount = abs(amount_signed)
-    sign = mathf.sign(amount_signed)
-
-    return sign * interpolator(*output_range, amount)
-
-
-def _vel_angular_to_target(
-    angle_current: int,
-    angle_target: int,
-    vel_range: Tuple[float, float],
-    interpolator: Callable[[float, float, float], float],
-) -> Tuple[float, float]:
-    error = (angle_current - angle_target) / 180
-    vel_angular = interpolate_signed(error, vel_range, interpolator)
-
-    return (vel_angular, error)
-
-
-def vel_angular_to_target(
-    angle_current: int,
-    angle_target: int,
-    vel_range: Tuple[float, float],
-    interpolator: Callable[[float, float, float], float],
-) -> float:
-    (vel_angular, _) = _vel_angular_to_target(
-        angle_current,
-        angle_target,
-        vel_range,
-        interpolator,
-    )
-    return vel_angular
-
-
-def velocities_to_target(
-    target: tb.ScanPoint,
-    angular_dampening: float,
-    separation_dist: float,
-    vel_linear_range: Tuple[float, float],
-    vel_angular_range: Tuple[float, float],
-    interpolator: Callable[[float, float, float], float],
-) -> Tuple[float, float]:
-    SCAN_RANGE_MAX = 3.5
-    (vel_linear_min, vel_linear_max) = vel_linear_range
-
-    (vel_angular, error_angular) = _vel_angular_to_target(
-        angle_current=target.angle_deg,
-        angle_target=0,
-        vel_range=vel_angular_range,
-        interpolator=interpolator,
-    )
-
-    error_linear = (target.distance - separation_dist) / SCAN_RANGE_MAX
-    scale = 1 - angular_dampening * abs(error_angular)
-    amount = scale * error_linear
-
-    vel_linear = interpolator(vel_linear_min, vel_linear_max, amount)
-
-    return (vel_linear, vel_angular)
-
-
 def trace_angular_vel(scan: Scan) -> float:
     if scan.forward is None or (wall := scan.forward).distance > 1.0:
         diff_angle = 90 - scan.closest.angle_deg
         sanitized_diff_angle = mathf.zero_abs_under(low=7, value=diff_angle)
         return -0.02 * sanitized_diff_angle
 
-    return -1 * interpolate_signed(
+    return -1 * tb.interpolate_signed(
         amount_signed=0.3 * wall.distance,
         output_range=(0.0, 2.0 * math.pi),
         interpolator=mathf.lerp,
@@ -143,7 +78,7 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
         if to_wall.distance < 0.5:
             return (Model.align, tb.stop)
 
-        (vel_linear, vel_angular) = velocities_to_target(
+        (vel_linear, vel_angular) = tb.velocities_to_target(
             target=to_wall,
             angular_dampening=0.45,
             separation_dist=0.5,
@@ -164,7 +99,7 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
         if to_wall.angle_deg > 88 and to_wall.angle_deg < 92:
             return (Model.trace, tb.stop)
 
-        vel_angular = vel_angular_to_target(
+        vel_angular = tb.vel_angular_to_target(
             angle_current=to_wall.angle_deg - 90,
             angle_target=0,
             vel_range=(0.1, math.pi),

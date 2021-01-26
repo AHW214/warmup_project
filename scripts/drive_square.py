@@ -108,7 +108,7 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
         direction = -1 * mathf.sign(d_theta)
         vel_angular = direction * 0.5
 
-        return (model, tb.velocity(linear=0.0, angular=vel_angular))
+        return (model, tb.turn_with(vel_angular))
 
     if isinstance(model.state, Approach):
         target = model.state.target
@@ -124,7 +124,7 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
                 state=Stop(until_time=rospy.Time.now() + rospy.Duration.from_sec(0.5)),
             )
 
-            return (new_model, tb.velocity(linear=0.0, angular=0.0))
+            return (new_model, tb.stop)
 
         new_dist = v2.distance_between(transform.position, midpoint)
         interpolation_linear = 1.0 - (new_dist / midpoint_dist)

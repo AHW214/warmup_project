@@ -44,8 +44,7 @@ class Scan:
     Distance and direction to the closest scanned object.
     """
 
-    distance: float
-    direction: float
+    closest: tb.ScanPoint
 
 
 Msg = Union[Wait, Scan]
@@ -53,52 +52,27 @@ Msg = Union[Wait, Scan]
 
 def to_msg(scan: LaserScan) -> Msg:
     """
-    Convert LiDAR data to the appropriate message (Wait or closest Scan).
+    Convert LiDAR data to the appropriate message (Wait or Scan).
     """
-    (count, distance) = min(enumerate(scan.ranges), key=lambda t: t[1])
-
-    if math.isinf(distance):
-        return Wait()
-
-    angle = scan.angle_increment * count
-    direction = angle - (2 * math.pi if angle > math.pi else 0.0)
-
-    return Scan(distance, direction)
+    closest = tb.closest_scan_point(scan)
+    return Wait() if closest is None else Scan(closest)
 
 
 ### Update ###
 
-VEL_ANGULAR_MIN = 0.0
-VEL_ANGULAR_MAX = 2 * math.pi
-
-VEL_LINEAR_MIN = 0.2
-VEL_LINEAR_MAX = 2.0
-
-SCAN_RANGE_MAX = 3.5
-STOP_DISTANCE = 0.75
-
 
 def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
     if model == Model.follow:
-        if isinstance(msg, Wait) or msg.distance < STOP_DISTANCE:
+        if isinstance(msg, Wait) or (target := msg.closest).distance < 0.75:
             return (Model.stop, tb.stop)
 
-        interpolation_angular = abs(msg.direction) / math.pi
-        direction = mathf.sign(msg.direction)
-        vel_angular = direction * mathf.lerp(
-            low=VEL_ANGULAR_MIN,
-            high=VEL_ANGULAR_MAX,
-            amount=interpolation_angular,
-        )
-
-        interpolation_linear = (1 - 0.45 * interpolation_angular) * min(
-            (msg.distance - STOP_DISTANCE) / SCAN_RANGE_MAX, 1.0
-        )
-
-        vel_linear = mathf.lerp(
-            low=VEL_LINEAR_MIN,
-            high=VEL_LINEAR_MAX,
-            amount=interpolation_linear,
+        (vel_linear, vel_angular) = tb.velocities_to_target(
+            target=target,
+            angular_dampening=0.45,
+            separation_dist=0.75,
+            vel_linear_range=(0.2, 2.0),
+            vel_angular_range=(0.0, 2.0 * math.pi),
+            interpolator=mathf.lerp,
         )
 
         return (
@@ -110,7 +84,7 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
         )
 
     # if model == Model.stop:
-    if isinstance(msg, Scan) and msg.distance >= STOP_DISTANCE:
+    if isinstance(msg, Scan) and msg.closest.distance >= 0.75:
         return (Model.follow, None)
 
     return (model, None)
@@ -119,8 +93,8 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
 ### Subscriptions ###
 
 
-def subscriptions(_: Model) -> List[Sub[Scan]]:
-    return [tb.scan(to_msg)]
+def subscriptions(_: Model) -> List[Sub[Msg]]:
+    return [tb.laser_scan(to_msg)]
 
 
 ### Run ###

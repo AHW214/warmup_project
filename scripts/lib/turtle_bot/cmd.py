@@ -1,3 +1,7 @@
+"""
+TurtleBot3 commands.
+"""
+
 from geometry_msgs.msg import Twist, Vector3
 from lib.controller import Cmd
 
@@ -23,12 +27,21 @@ def velocity(linear: float, angular: float) -> Cmd:
     )
 
 
-def turn_with(vel: float) -> Cmd:
-    return velocity(linear=0.0, angular=vel)
+def turn_with(vel_angular: float) -> Cmd:
+    """
+    Have TurtleBot turn with the given angular velocity.
+    """
+    return velocity(linear=0.0, angular=vel_angular)
 
 
-def drive_with(vel: float) -> Cmd:
-    return velocity(linear=vel, angular=0.0)
+def drive_with(vel_linear: float) -> Cmd:
+    """
+    Have TurtleBot drive with the given linear velocity.
+    """
+    return velocity(linear=vel_linear, angular=0.0)
 
 
+"""
+Instruct TurtleBot to stop moving.
+"""
 stop: Cmd = velocity(linear=0.0, angular=0.0)

@@ -1,5 +1,5 @@
 """
-TurtleBot3 commands, subscriptions, and utilities.
+TurtleBot3 interface and utilities.
 """
 
 from lib.turtle_bot.cmd import drive_with, stop, turn_with, velocity

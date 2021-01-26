@@ -1,5 +1,5 @@
 """
-ROS controller.
+A controller for ROS devices.
 """
 
 from queue import Queue

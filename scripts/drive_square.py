@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Drive TurtleBot in a square.
+Have TurtleBot drive in a square.
 """
 
 from dataclasses import dataclass, replace
@@ -87,12 +87,18 @@ def delta_angle(transform: tb.Transform, target: Vector2) -> float:
 
 def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]:
     if isinstance(model.state, Face):
+        # Face the target position
+
         target = model.state.target
         d_theta = delta_angle(transform, target)
 
         if abs(d_theta) < 1e-2:
+            # Approximately facing the target
+
             target_midpoint = v2.scale(transform.position + target, 0.5)
             midpoint_dist = v2.distance_between(transform.position, target_midpoint)
+
+            # Begin approaching target
 
             new_model = replace(
                 model,
@@ -105,12 +111,16 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
 
             return (new_model, None)
 
+        # Rotate to face target if not yet aligned
+
         direction = -1 * mathf.sign(d_theta)
         vel_angular = direction * 0.5
 
         return (model, tb.turn_with(vel_angular))
 
     if isinstance(model.state, Approach):
+        # Approach the target position
+
         target = model.state.target
         midpoint = model.state.target_midpoint
         midpoint_dist = model.state.midpoint_dist
@@ -118,6 +128,8 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
         target_dist = v2.distance_between(transform.position, target)
 
         if target_dist < 3e-2:
+            # Approximately at the target; pause movement
+
             new_model = replace(
                 model,
                 visited=[*model.visited, target],
@@ -126,25 +138,37 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
 
             return (new_model, tb.stop)
 
+        # Compute linear velocity to target based on current distance
+
         new_dist = v2.distance_between(transform.position, midpoint)
         interpolation_linear = 1.0 - (new_dist / midpoint_dist)
         vel_linear = mathf.smoothstep(0.2, 1.0, interpolation_linear)
 
+        # Computer angular velocity to target based on current rotation
+        # and distance
+
         d_theta = delta_angle(transform, target)
-        interpolation_angular = abs(d_theta) / math.pi
-        direction = -1 * mathf.sign(d_theta)
         scale = max(15 * target_dist, 1.0)
+
         vel_angular = (
-            direction
+            -1
             * scale
-            * mathf.smoothstep(0.0, 2.0 * math.pi, interpolation_angular)
+            * tb.vel_angular_to_target(
+                angle_current=math.degrees(d_theta),
+                angle_target=0,
+                vel_range=(0.0, 2.0 * math.pi),
+                interpolator=mathf.smoothstep,
+            )
         )
 
         return (model, tb.velocity(linear=vel_linear, angular=vel_angular))
 
-    # isInstance(model.State, Stop)
+    # In the stop state; wait until stop time has passed
+
     if rospy.Time.now() < model.state.until_time:
         return (model, None)
+
+    # Dequeue next target, or reset targets if all have been visited
 
     ((target, *to_visit), visited) = (
         (model.to_visit, model.visited) if model.to_visit else (model.visited, [])
@@ -155,6 +179,8 @@ def update(transform: tb.Transform, model: Model) -> Tuple[Model, Optional[Cmd]]
         visited=visited,
         state=Face(target),
     )
+
+    # For exhaustiveness
 
     return (new_model, None)
 

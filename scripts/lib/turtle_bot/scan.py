@@ -1,3 +1,7 @@
+"""
+TurtleBot3 LiDAR interface.
+"""
+
 from dataclasses import dataclass
 from math import isinf
 from typing import Optional
@@ -7,7 +11,7 @@ from sensor_msgs.msg import LaserScan
 @dataclass
 class ScanPoint:
     """
-    Point representing an object scanned by TurtleBot's LiDAR.
+    A point representing an object scanned by LiDAR.
     """
 
     angle_deg: int
@@ -31,6 +35,9 @@ def closest_scan_point(scan: LaserScan) -> Optional[ScanPoint]:
 
 
 def scan_point_at(angle_deg: int, scan: LaserScan) -> Optional[ScanPoint]:
+    """
+    Try to create a ScanPoint from the measurement at the given degree angle.
+    """
     index = angle_deg + (360 if angle_deg < 0 else 0)
 
     if index < 0 or index >= len(scan.ranges) or isinf(distance := scan.ranges[index]):

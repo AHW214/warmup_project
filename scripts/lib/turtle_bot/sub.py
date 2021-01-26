@@ -1,3 +1,7 @@
+"""
+TurtleBot3 subscriptions.
+"""
+
 from typing import Callable, TypeVar
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan

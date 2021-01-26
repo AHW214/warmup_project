@@ -122,29 +122,34 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
         return (model, tb.turn_with(vel=-0.25))
 
     if isinstance(model, Trace):
-        if (left := msg.left) is None:
-            return (model, tb.stop)
+        to_wall = msg.closest
 
-        err_left = 0.1 * (model.init_left_dist - left.distance)
+        # err_left = model.init_left_dist - left.distance
+        # interpolation_left = abs(0.0 if abs(err_left) < 0.025 else err_left)
+        # direction_left = -1 * mathf.sign(err_left)
+        # component_left = direction_left * mathf.lerp(
+        #     low=0.0, high=math.pi, amount=interpolation_left
+        # )
+
+        diff = 90 - to_wall.angle_deg
+        err_angle = -1 * (diff if abs(diff) > 10 else 0.0) / 20
+
+        print(err_angle)
 
         err_forward = 0.3 * (
             0.0
             if msg.forward is None or msg.forward.distance > 1.0
             else msg.forward.distance
         )
-
-        err = err_forward + err_left
-
-        interpolation_angular = abs(err)
-        print(interpolation_angular)
-        direction = -1 * mathf.sign(err)
-
-        vel_angular = direction * mathf.lerp(
+        interpolation_forward = abs(err_forward)
+        direction_forward = -1 * mathf.sign(err_forward)
+        component_forward = direction_forward * mathf.lerp(
             low=0.0,
             high=2 * math.pi,
-            amount=interpolation_angular,
+            amount=interpolation_forward,
         )
 
+        vel_angular = component_forward if component_forward != 0.0 else err_angle
         return (model, tb.velocity(linear=0.5, angular=vel_angular))
 
     return (model, None)

@@ -5,8 +5,9 @@ Have TurtleBot navigate alongside nearby walls.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 import math
-from typing import List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 import rospy
 from sensor_msgs.msg import LaserScan
 from lib.controller import Cmd, Controller, Sub
@@ -16,24 +17,13 @@ import lib.turtle_bot as tb
 ### Model ###
 
 
-@dataclass
-class Approach:
-    pass
+class Model(Enum):
+    approach = 1
+    align = 2
+    trace = 3
 
 
-@dataclass
-class Align:
-    pass
-
-
-@dataclass
-class Trace:
-    init_left_dist: float
-
-
-Model = Union[Approach, Align, Trace]
-
-init_model: Model = Approach()
+init_model: Model = Model.approach
 
 
 ### Events ###
@@ -50,7 +40,6 @@ class Wait:
 class Scan:
     closest: tb.ScanPoint
     forward: Optional[tb.ScanPoint]
-    left: Optional[tb.ScanPoint]
 
 
 Msg = Union[Wait, Scan]
@@ -59,49 +48,108 @@ Msg = Union[Wait, Scan]
 def to_msg(scan: LaserScan) -> Msg:
     closest = tb.closest_scan_point(scan)
     forward = tb.scan_point_at(angle_deg=0, scan=scan)
-    left = tb.scan_point_at(angle_deg=90, scan=scan)
 
-    return Wait() if closest is None else Scan(closest, forward, left)
+    return Wait() if closest is None else Scan(closest, forward)
 
 
 ### Update ###
 
-VEL_ANGULAR_MIN = 0.0
-VEL_ANGULAR_MAX = 2 * math.pi
 
-VEL_LINEAR_MIN = 0.2
-VEL_LINEAR_MAX = 2.0
+def interpolate_signed(
+    amount_signed: float,
+    output_range: Tuple[float, float],
+    interpolator: Callable[[float, float, float], float],
+) -> float:
+    amount = abs(amount_signed)
+    sign = mathf.sign(amount_signed)
 
-SCAN_RANGE_MAX = 3.5
-STOP_DISTANCE = 0.5
+    return sign * interpolator(*output_range, amount)
+
+
+def _vel_angular_to_target(
+    angle_current: int,
+    angle_target: int,
+    vel_range: Tuple[float, float],
+    interpolator: Callable[[float, float, float], float],
+) -> Tuple[float, float]:
+    error = (angle_current - angle_target) / 180
+    vel_angular = interpolate_signed(error, vel_range, interpolator)
+
+    return (vel_angular, error)
+
+
+def vel_angular_to_target(
+    angle_current: int,
+    angle_target: int,
+    vel_range: Tuple[float, float],
+    interpolator: Callable[[float, float, float], float],
+) -> float:
+    (vel_angular, _) = _vel_angular_to_target(
+        angle_current,
+        angle_target,
+        vel_range,
+        interpolator,
+    )
+    return vel_angular
+
+
+def velocities_to_target(
+    target: tb.ScanPoint,
+    angular_dampening: float,
+    separation_dist: float,
+    vel_linear_range: Tuple[float, float],
+    vel_angular_range: Tuple[float, float],
+    interpolator: Callable[[float, float, float], float],
+) -> Tuple[float, float]:
+    SCAN_RANGE_MAX = 3.5
+    (vel_linear_min, vel_linear_max) = vel_linear_range
+
+    (vel_angular, error_angular) = _vel_angular_to_target(
+        angle_current=target.angle_deg,
+        angle_target=0,
+        vel_range=vel_angular_range,
+        interpolator=interpolator,
+    )
+
+    error_linear = (target.distance - separation_dist) / SCAN_RANGE_MAX
+    scale = 1 - angular_dampening * abs(error_angular)
+    amount = scale * error_linear
+
+    vel_linear = interpolator(vel_linear_min, vel_linear_max, amount)
+
+    return (vel_linear, vel_angular)
+
+
+def trace_angular_vel(scan: Scan) -> float:
+    if scan.forward is None or (wall := scan.forward).distance > 1.0:
+        diff_angle = 90 - scan.closest.angle_deg
+        sanitized_diff_angle = mathf.zero_abs_under(low=10, value=diff_angle)
+        return -0.05 * sanitized_diff_angle
+
+    return -1 * interpolate_signed(
+        amount_signed=0.3 * wall.distance,
+        output_range=(0.0, 2.0 * math.pi),
+        interpolator=mathf.lerp,
+    )
 
 
 def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
     if isinstance(msg, Wait):
         return (model, tb.stop)
 
-    target = msg.closest
+    to_wall = msg.closest
 
-    if isinstance(model, Approach):
-        if (target := msg.closest).distance < STOP_DISTANCE:
-            return (Align(), tb.stop)
+    if model == Model.approach:
+        if to_wall.distance < 0.5:
+            return (Model.align, tb.stop)
 
-        interpolation_angular = abs(target.direction) / math.pi
-        direction = mathf.sign(target.direction)
-        vel_angular = direction * mathf.lerp(
-            low=VEL_ANGULAR_MIN,
-            high=VEL_ANGULAR_MAX,
-            amount=interpolation_angular,
-        )
-
-        interpolation_linear = (1 - 0.45 * interpolation_angular) * min(
-            (target.distance - STOP_DISTANCE) / SCAN_RANGE_MAX, 1.0
-        )
-
-        vel_linear = mathf.lerp(
-            low=VEL_LINEAR_MIN,
-            high=VEL_LINEAR_MAX,
-            amount=interpolation_linear,
+        (vel_linear, vel_angular) = velocities_to_target(
+            target=to_wall,
+            angular_dampening=0.45,
+            separation_dist=0.5,
+            vel_linear_range=(0.2, 2.0),
+            vel_angular_range=(0.0, 2.0 * math.pi),
+            interpolator=mathf.lerp,
         )
 
         return (
@@ -112,44 +160,21 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
             ),
         )
 
-    if isinstance(model, Align):
-        if (
-            target.angle_deg > 80 and target.angle_deg < 100 and msg.left is not None
-        ):  # TODO
-            init_left_dist = msg.left.distance
-            return (Trace(init_left_dist), tb.stop)
+    if model == Model.align:
+        if to_wall.angle_deg > 88 and to_wall.angle_deg < 92:
+            return (Model.trace, tb.stop)
 
-        return (model, tb.turn_with(vel=-0.25))
-
-    if isinstance(model, Trace):
-        to_wall = msg.closest
-
-        # err_left = model.init_left_dist - left.distance
-        # interpolation_left = abs(0.0 if abs(err_left) < 0.025 else err_left)
-        # direction_left = -1 * mathf.sign(err_left)
-        # component_left = direction_left * mathf.lerp(
-        #     low=0.0, high=math.pi, amount=interpolation_left
-        # )
-
-        diff = 90 - to_wall.angle_deg
-        err_angle = -1 * (diff if abs(diff) > 10 else 0.0) / 20
-
-        print(err_angle)
-
-        err_forward = 0.3 * (
-            0.0
-            if msg.forward is None or msg.forward.distance > 1.0
-            else msg.forward.distance
-        )
-        interpolation_forward = abs(err_forward)
-        direction_forward = -1 * mathf.sign(err_forward)
-        component_forward = direction_forward * mathf.lerp(
-            low=0.0,
-            high=2 * math.pi,
-            amount=interpolation_forward,
+        vel_angular = vel_angular_to_target(
+            angle_current=to_wall.angle_deg - 90,
+            angle_target=0,
+            vel_range=(0.1, math.pi),
+            interpolator=mathf.smoothstep,
         )
 
-        vel_angular = component_forward if component_forward != 0.0 else err_angle
+        return (model, tb.turn_with(vel=vel_angular))
+
+    if model == Model.trace:
+        vel_angular = trace_angular_vel(msg)
         return (model, tb.velocity(linear=0.5, angular=vel_angular))
 
     return (model, None)

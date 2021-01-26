@@ -38,3 +38,11 @@ def sign(value: float) -> int:
     @return: 1 if `value` is positive, -1 if `value` is negative, or 0 otherwise.
     """
     return 1 if value > 0 else -1 if value < 0 else 0
+
+
+def zero_under(low: float, value: float) -> float:
+    return 0.0 if value < low else value
+
+
+def zero_abs_under(low: float, value: float) -> float:
+    return 0.0 if abs(value) < low else value

@@ -41,8 +41,15 @@ def sign(value: float) -> int:
 
 
 def zero_under(low: float, value: float) -> float:
+    """
+    Return zero if `value` is less than `low`, or return `value`.
+    """
     return 0.0 if value < low else value
 
 
 def zero_abs_under(low: float, value: float) -> float:
+    """
+    Return zero if the absolute value of `value` is less than `low`, or return
+    `value`.
+    """
     return 0.0 if abs(value) < low else value

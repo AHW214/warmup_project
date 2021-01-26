@@ -1,5 +1,5 @@
 """
-Controller subscriptions.
+ROS controller subscriptions.
 """
 
 from dataclasses import dataclass

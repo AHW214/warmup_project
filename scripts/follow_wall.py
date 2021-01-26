@@ -123,8 +123,8 @@ def velocities_to_target(
 def trace_angular_vel(scan: Scan) -> float:
     if scan.forward is None or (wall := scan.forward).distance > 1.0:
         diff_angle = 90 - scan.closest.angle_deg
-        sanitized_diff_angle = mathf.zero_abs_under(low=10, value=diff_angle)
-        return -0.05 * sanitized_diff_angle
+        sanitized_diff_angle = mathf.zero_abs_under(low=7, value=diff_angle)
+        return -0.02 * sanitized_diff_angle
 
     return -1 * interpolate_signed(
         amount_signed=0.3 * wall.distance,

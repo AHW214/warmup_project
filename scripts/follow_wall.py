@@ -88,11 +88,11 @@ def trace_angular_vel(scan: Scan) -> float:
         sanitized_diff_angle = mathf.zero_abs_under(low=7, value=diff_angle)
         return -0.02 * sanitized_diff_angle
 
-    # Approaching a corner; turn more strongly as distance to corner decreases TODO
+    # Approaching a corner; turn more strongly as distance to corner decreases
 
     return -1 * tb.interpolate_signed(
-        amount_signed=0.3 * corner.distance,
-        output_range=(0.0, 2.0 * math.pi),
+        amount_signed=1.0 - corner.distance,
+        output_range=(0.0, 3.0 * math.pi),
         interpolator=mathf.lerp,
     )
 

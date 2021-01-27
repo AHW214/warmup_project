@@ -1,5 +1,6 @@
 """
-A controller for ROS devices.
+A controller for ROS devices. Inspired by how Elm handles effects, see:
+https://guide.elm-lang.org/effects/
 """
 
 from queue import Queue

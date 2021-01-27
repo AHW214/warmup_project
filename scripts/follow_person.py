@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 import math
 from typing import List, Optional, Tuple, Union
+from lib.turtle_bot.util import vel_angular_to_target
 import rospy
 from sensor_msgs.msg import LaserScan
 from lib.controller import Cmd, Controller, Sub
@@ -20,15 +21,15 @@ import lib.turtle_bot as tb
 
 class Model(Enum):
     """
-    Possible states: stop or follow.
+    Possible states: watch or follow.
     """
 
-    stop = 1
+    watch = 1
     follow = 2
 
 
-# Start in the stopped state.
-init_model: Model = Model.stop
+# Start in the follow state.
+init_model: Model = Model.follow
 
 
 ### Events ###
@@ -63,24 +64,31 @@ def to_msg(scan: LaserScan) -> Msg:
 
 ### Update ###
 
-STOP_DISTANCE = 0.75
+WATCH_DISTANCE = 0.75
 
 
 def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
+    if isinstance(msg, Wait):
+        # Wait until an object is within range of the scanner
+
+        return (model, tb.stop)
+
+    target = msg.closest
+
     if model == Model.follow:
         # Follow the closest object
 
-        if isinstance(msg, Wait) or (target := msg.closest).distance < STOP_DISTANCE:
-            # No scan data or already close to the target
+        if target.distance <= WATCH_DISTANCE:
+            # Already close to the target
 
-            return (Model.stop, tb.stop)
+            return (Model.watch, tb.stop)
 
         # Compute linear and angular velocities for approaching the target
 
         (vel_linear, vel_angular) = tb.velocities_to_target(
             target=target,
             angular_dampening=0.45,
-            separation_dist=STOP_DISTANCE,
+            separation_dist=WATCH_DISTANCE,
             vel_linear_range=(0.2, 2.0),
             vel_angular_range=(0.0, 2.0 * math.pi),
             interpolator=mathf.lerp,
@@ -94,16 +102,27 @@ def update(msg: Msg, model: Model) -> Tuple[Model, Optional[Cmd]]:
             ),
         )
 
-    # In the stopped state
+    # In the watch state
 
-    if isinstance(msg, Scan) and msg.closest.distance >= STOP_DISTANCE:
+    if target.distance > WATCH_DISTANCE:
         # Follow if there was a scan indicating the object is at a distance
 
         return (Model.follow, None)
 
-    # For exhaustiveness
+    # Compute angle to target accounting for scanner noise
 
-    return (model, None)
+    angle_offset = round(mathf.zero_abs_under(10, target.angle_deg))
+
+    vel_angular = vel_angular_to_target(
+        angle_current=angle_offset,
+        angle_target=0,
+        vel_range=(0.0, 2.0 * math.pi),
+        interpolator=mathf.lerp,
+    )
+
+    # Rotate towards target
+
+    return (model, tb.turn_with(vel_angular))
 
 
 ### Subscriptions ###
